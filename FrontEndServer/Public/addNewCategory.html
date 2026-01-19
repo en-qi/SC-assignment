@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add Category — Game Shop</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body{background:#071028;color:#fff;min-height:100vh}
+    .card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04)}
+    .form-control, textarea{background:rgba(255,255,255,0.03);color:#fff;border:1px solid rgba(255,255,255,0.06)}
+    .muted{color:rgba(255,255,255,0.75)}
+
+    /* Ensure all text elements are white */
+    h1,h2,h3,h4,h5,h6,p,label,li,span,div,strong,em,a,button,.form-label,.muted{ color:#ffffff !important; }
+    ::placeholder { color: rgba(255,255,255,0.6) !important; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="newHome.html">Game Shop</a>
+      <div class="collapse navbar-collapse">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="newHome.html">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="gamesSearch.html">Games</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <div class="card p-3 mx-auto" style="max-width:720px">
+      <h3 class="mb-3">Add Category</h3>
+      <form id="categoryForm">
+        <div class="mb-3">
+          <label class="form-label">Category name</label>
+          <input id="CategoryName" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Description</label>
+          <textarea id="CategoryDescription" class="form-control" rows="4"></textarea>
+        </div>
+
+        <div id="alertBox" class="alert d-none" role="alert"></div>
+
+        <div class="d-grid">
+          <button id="submitCategory" type="submit" class="btn btn-primary">Create Category</button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    (function(){
+      const apiBase = 'http://localhost:8081';
+      const form = document.getElementById('categoryForm');
+      const alertBox = document.getElementById('alertBox');
+
+      function showAlert(msg, type='danger'){
+        alertBox.className = 'alert alert-' + type;
+        alertBox.textContent = msg;
+        alertBox.classList.remove('d-none');
+      }
+      function clearAlert(){ alertBox.className = 'alert d-none'; alertBox.textContent = ''; }
+
+      async function checkAdmin(){
+        const token = localStorage.getItem('Token');
+        if(!token){ showAlert('Admin access required. Please login.', 'warning'); return false; }
+        try{
+          const res = await fetch(apiBase + '/CheckRole', { headers: { 'Authorization': 'Bearer ' + token } });
+          if(!res.ok) return false;
+          const d = await res.json();
+          return (d.role === 'Admin' || d.role === 'admin');
+        }catch(e){ console.error(e); return false; }
+      }
+
+      form.addEventListener('submit', async function(e){
+        e.preventDefault(); clearAlert();
+        const isAdmin = await checkAdmin();
+        if(!isAdmin){ showAlert('Admin access required.'); return; }
+
+        const name = document.getElementById('CategoryName').value.trim();
+        const desc = document.getElementById('CategoryDescription').value.trim();
+        if(!name){ showAlert('Category name is required.','warning'); return; }
+
+        try{
+          const token = localStorage.getItem('Token');
+          const res = await fetch(apiBase + '/category', {
+            method: 'POST', headers: Object.assign({ 'Content-Type':'application/json' }, token?{ 'Authorization':'Bearer '+token }:{}),
+            body: JSON.stringify({ catname: name, description: desc })
+          });
+
+          if(res.status === 201 || res.ok){ showAlert('Category created successfully.', 'success'); form.reset(); }
+          else if(res.status === 422){ const txt = await res.text(); showAlert('Validation: '+txt, 'warning'); }
+          else { const txt = await res.text(); showAlert('Error: '+txt); }
+        }catch(e){ console.error(e); showAlert('Network error'); }
+      });
+
+      document.querySelectorAll('#Logout').forEach(el=> el && el.addEventListener('click', function(e){ e.preventDefault(); localStorage.clear(); alert('You have successfully Logged out.'); }));
+
+    })();
+  </script>
+</body>
+</html>

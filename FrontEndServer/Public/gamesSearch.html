@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Games — Game Shop</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { background: #0b1220; color: #ffffff; min-height:100vh; }
+    .navbar, .card { background: rgba(255,255,255,0.03); }
+    .hero { background: linear-gradient(90deg, rgba(59,130,246,0.12), rgba(99,102,241,0.08)); padding: 2.5rem 1rem; border-radius: .5rem; }
+    .form-control, .form-select { background: rgba(255,255,255,0.03); color: #fff; border: 1px solid rgba(255,255,255,0.06); }
+    .form-control::placeholder { color: rgba(255,255,255,0.6); }
+    .card { border: 1px solid rgba(255,255,255,0.04); }
+    .game-title { color: #fff; font-weight:600; }
+    .muted { color: rgba(255,255,255,0.7); }
+    a { color: #93c5fd; }
+    .admin-tab { display: none; }
+    .no-results { color: rgba(255,255,255,0.8); padding: 2rem; text-align:center; }
+
+    /* Ensure most text elements are white on dark background */
+    .nav-link, .navbar-brand, h1, h2, h3, h4, h5, h6, p, label, .form-label, .form-check-label, .card-body, .muted, #resultsInfo, .game-title {
+      color: #ffffff !important;
+    }
+
+    /* Make dropdown option text black so options are readable */
+    .form-select option,
+    select option {
+      color: #000 !important;
+      background-color: #fff !important;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+      <a class="navbar-brand" href="newHome.html">Game Shop</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="nav">
+        <ul class="navbar-nav ms-auto align-items-center">
+          <li class="nav-item"><a class="nav-link" href="newHome.html">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="gamesSearch.html">Games</a></li>
+          <li class="nav-item admin-tab"><a class="nav-link" href="AddPlatform.html">Add Platform</a></li>
+          <li class="nav-item admin-tab"><a class="nav-link" href="AddCategory.html">Add Category</a></li>
+          <li class="nav-item admin-tab"><a class="nav-link" href="AddGame.html">Add Game</a></li>
+          <li class="nav-item"><a id="LoginLink" class="nav-link" href="login.html">Login</a></li>
+           <li class="nav-item"><a id="Logout" class="nav-link" href="#">Logout</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <div class="hero mb-4">
+      <div class="row g-3 align-items-center">
+        <div class="col-lg-6">
+          <h2 class="mb-1">Find your next game</h2>
+          <p class="muted mb-0">Search, filter and explore games from our catalog.</p>
+        </div>
+        <div class="col-lg-6">
+          <form id="searchForm" class="d-flex gap-2">
+            <input id="search-input" class="form-control" type="search" placeholder="Search games by title" aria-label="Search">
+            <select id="platform" class="form-select" style="max-width:220px">
+              <option value="">All Platforms</option>
+            </select>
+            <select id="category" class="form-select" style="max-width:220px">
+              <option value="">All Categories</option>
+            </select>
+            <button id="search-button" class="btn btn-primary" type="submit"><i class="fa fa-search"></i></button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div id="resultsInfo" class="mb-3 muted"></div>
+
+    <div id="game-grid" class="row g-3">
+      <!-- cards injected here -->
+    </div>
+
+    <div id="noResults" class="no-results d-none">No games found</div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    (function () {
+      const apiBase = 'http://localhost:8081'; // same backend endpoints as games.html
+
+      const searchInput = document.getElementById('search-input');
+      const platformSelect = document.getElementById('platform');
+      const categorySelect = document.getElementById('category');
+      const resultsInfo = document.getElementById('resultsInfo');
+      const gameGrid = document.getElementById('game-grid');
+      const noResults = document.getElementById('noResults');
+
+      function showAdminTabs(isAdmin) {
+        document.querySelectorAll('.admin-tab').forEach(el => {
+          el.style.display = isAdmin ? 'block' : 'none';
+        });
+      }
+
+      async function checkRole(token) {
+        if (!token) { showAdminTabs(false); return; }
+        try {
+          const res = await fetch(apiBase + '/CheckRole', { headers: { 'Authorization': 'Bearer ' + token } });
+          if (res.ok) {
+            const data = await res.json();
+            showAdminTabs(data.role === 'Admin' || data.role === 'admin');
+          } else showAdminTabs(false);
+        } catch (e) { console.error(e); showAdminTabs(false); }
+      }
+
+      async function loadFilters() {
+        try {
+          const [catsRes, platsRes] = await Promise.all([
+            fetch(apiBase + '/category/'),
+            fetch(apiBase + '/platform/')
+          ]);
+
+          if (catsRes.ok) {
+            const cats = await catsRes.json();
+            categorySelect.innerHTML = '<option value="">All Categories</option>' + cats.map(c => `<option value="${c.catname}">${c.catname}</option>`).join('');
+          }
+          if (platsRes.ok) {
+            const plats = await platsRes.json();
+            platformSelect.innerHTML = '<option value="">All Platforms</option>' + plats.map(p => `<option value="${p.platform_name}">${p.platform_name}</option>`).join('');
+          }
+        } catch (e) { console.error('Failed to load filters', e); }
+      }
+
+      function renderGames(list) {
+        gameGrid.innerHTML = '';
+        if (!list || list.length === 0) {
+          noResults.classList.remove('d-none');
+          resultsInfo.textContent = '';
+          return;
+        }
+        noResults.classList.add('d-none');
+        resultsInfo.textContent = `${list.length} matching result${list.length>1 ? 's' : ''}`;
+        const frag = document.createDocumentFragment();
+        list.forEach(g => {
+          const col = document.createElement('div');
+          col.className = 'col-sm-6 col-md-4 col-lg-3';
+
+          const card = document.createElement('div');
+          card.className = 'card h-100 p-2';
+
+          const img = document.createElement('img');
+          img.className = 'card-img-top';
+          img.alt = g.title || 'Game image';
+          img.loading = 'lazy';
+          img.style.objectFit = 'cover';
+          img.style.height = '180px';
+          if (g.game_image) img.src = 'data:image/jpeg;base64,' + g.game_image; else img.src = 'img/placeholder.png';
+
+          const body = document.createElement('div');
+          body.className = 'card-body d-flex flex-column';
+
+          const title = document.createElement('h5');
+          title.className = 'game-title mb-1';
+          title.textContent = g.title || 'Untitled';
+
+          const meta = document.createElement('div');
+          meta.className = 'muted mb-2 small';
+          meta.innerHTML = `${g.platform_name || ''} • $${g.price || '0.00'}`;
+
+          const btnRow = document.createElement('div');
+          btnRow.className = 'mt-auto d-flex justify-content-between align-items-center';
+
+          const more = document.createElement('a');
+          more.className = 'btn btn-sm btn-outline-light';
+          more.href = `newGame-detail.html?gameID=${g.gameID}`;
+          more.textContent = 'Details';
+
+          btnRow.appendChild(more);
+
+          body.appendChild(title);
+          body.appendChild(meta);
+          body.appendChild(btnRow);
+
+          card.appendChild(img);
+          card.appendChild(body);
+          col.appendChild(card);
+          frag.appendChild(col);
+        });
+
+        gameGrid.appendChild(frag);
+      }
+
+      async function searchGames(e) {
+        if (e) e.preventDefault();
+        const input = (searchInput.value || '').trim();
+        const plat = platformSelect.value || '';
+        const cat = categorySelect.value || '';
+
+        const payload = { input, platID: plat, catID: cat };
+        try {
+          const res = await fetch(apiBase + '/searchgame', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          });
+          if (!res.ok) { console.error('search failed', res.status); renderGames([]); return; }
+          const data = await res.json();
+          renderGames(data);
+        } catch (err) { console.error(err); renderGames([]); }
+      }
+
+      document.getElementById('searchForm').addEventListener('submit', searchGames);
+
+      // Initialize
+      (async function init() {
+        await loadFilters();
+        const token = localStorage.getItem('Token');
+        await checkRole(token);
+
+        // If navigated from home with query param 'homeSearch'
+        const homeParams = new URLSearchParams(window.location.search);
+        const homeSearch = homeParams.get('homeSearch');
+        if (homeSearch) { searchInput.value = homeSearch; }
+
+        // initial search to show all games
+        await searchGames();
+
+        // show/hide login/logout
+        const loginLink = document.getElementById('LoginLink');
+        const logoutLink = document.getElementById('Logout');
+        function updateAuthLinks(){ const t = localStorage.getItem('Token'); if(t){ if(loginLink) loginLink.style.display='none'; if(logoutLink) logoutLink.style.display='inline'; } else { if(loginLink) loginLink.style.display='inline'; if(logoutLink) logoutLink.style.display='none'; } }
+        updateAuthLinks();
+        if(logoutLink) logoutLink.addEventListener('click', function(e){ e.preventDefault(); localStorage.clear(); alert('You have successfully logged out.'); updateAuthLinks(); });
+      })();
+
+    })();
+  </script>
+</body>
+</html>

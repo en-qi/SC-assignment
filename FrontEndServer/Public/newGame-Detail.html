@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Details — Game Shop</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body{background:#071028;color:#fff;min-height:100vh}
+    .container{max-width:1100px}
+    .card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04)}
+    .muted{color:rgba(255,255,255,0.8)}
+    .game-image{width:100%;height:360px;object-fit:cover;border-radius:.5rem}
+    textarea{width:100%;min-height:120px;background:rgba(255,255,255,0.03);color:#fff;border:1px solid rgba(255,255,255,0.06);padding:.75rem}
+    select{background:#fff;color:#000;padding:.4rem;border-radius:.25rem}
+
+    /* Force page text to white */
+    h1,h2,h3,h4,h5,h6,p,label,li,span,a,strong{color:#ffffff !important}
+    .muted{color:rgba(255,255,255,0.85) !important}
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="newHome.html">Game Shop</a>
+      <div class="collapse navbar-collapse">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="newHome.html">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="gamesSearch.html">Games</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <div id="Game-Info-Display" class="mb-4"></div>
+
+    <div class="card p-3 mb-4">
+      <h4 class="mb-2">Add a Review</h4>
+      <form id="reviewForm">
+        <div class="mb-3">
+          <textarea name="content" placeholder="Write your review..." required></textarea>
+        </div>
+        <div class="mb-3">
+          <label for="rating">Rating</label>
+          <select id="ratingDropdown" name="rating" required>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+        <div class="d-grid">
+          <button id="submit-review" class="btn btn-primary" type="submit">Submit Review</button>
+        </div>
+      </form>
+    </div>
+
+    <section id="reviewDisplaySection"></section>
+
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    (function(){
+      const apiBase = 'http://localhost:8081';
+
+      function showAlert(msg){ alert(msg); }
+
+      async function submitReview(){
+        const reviewForm = document.getElementById('reviewForm');
+        const fd = new FormData(reviewForm);
+        const body = {};
+        fd.forEach((v,k)=> body[k]=v);
+
+        const gameID = new URLSearchParams(window.location.search).get('gameID');
+        const user = JSON.parse(localStorage.getItem('user')||'null');
+        const token = localStorage.getItem('Token');
+        if(!user || !token){ showAlert('Please log in to add a review.'); return; }
+
+        try{
+          const res = await fetch(`${apiBase}/users/${user.userid}/game/${gameID}/review`, { method:'POST', headers:{ 'Authorization':'Bearer '+token, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+          if(!res.ok){ const t = await res.text(); showAlert('Failed to submit review: '+t); return; }
+          showAlert('Review added successfully'); reviewForm.reset(); loadReviews(gameID);
+        }catch(e){ console.error(e); showAlert('Network error'); }
+      }
+
+      function renderReviews(reviews){
+        const out = document.getElementById('reviewDisplaySection'); out.innerHTML='';
+        if(!reviews || reviews.length===0){ out.innerHTML='<p class="muted">No reviews yet.</p>'; return; }
+        reviews.forEach(r=>{
+          const div = document.createElement('div'); div.className='card p-3 mb-3';
+          div.innerHTML = `
+            <div class="d-flex gap-3">
+              <img src="data:image/jpeg;base64,${r.profile_pic_url||''}" style="width:64px;height:64px;object-fit:cover;border-radius:50%" alt="user">
+              <div>
+                <strong>${r.username||'User'}</strong>
+                <div class="muted small">${r.created_at||''} • Rating: ${r.rating||''}</div>
+                <p class="mt-2">${r.content||''}</p>
+              </div>
+            </div>
+          `;
+          out.appendChild(div);
+        });
+      }
+
+      async function loadGame(gameID){
+        try{
+          const res = await fetch(`${apiBase}/searchgamedetails/${gameID}`);
+          if(!res.ok) throw new Error('Failed to load game');
+          const data = await res.json(); if(!data || data.length===0) return;
+          const g = data[0];
+          const prices = (g.prices||'').split(',');
+          const platforms = (g.platforms||'').split(',');
+          let pricesHTML = '';
+          for(let i=0;i<platforms.length;i++) pricesHTML += `<li>${platforms[i]} — $${prices[i]||'0.00'}</li>`;
+          document.getElementById('Game-Info-Display').innerHTML = `
+            <div class="row g-3 align-items-start">
+              <div class="col-md-5"><img class="game-image" src="data:image/jpeg;base64,${g.game_image||''}" alt="${g.title||''}"></div>
+              <div class="col-md-7">
+                <h2>${g.title||''}</h2>
+                <p class="muted">${g.categories||''} • ${g.year||''}</p>
+                <p>${g.game_description||''}</p>
+                <h5>Prices</h5>
+                <ul>${pricesHTML}</ul>
+              </div>
+            </div>
+          `;
+        }catch(e){console.error(e)}
+      }
+
+      async function loadReviews(gameID){
+        try{
+          const res = await fetch(`${apiBase}/game/${gameID}/review`);
+          if(!res.ok) return renderReviews([]);
+          const data = await res.json(); renderReviews(data);
+        }catch(e){console.error(e)}
+      }
+
+      document.getElementById('reviewForm').addEventListener('submit', function(e){ e.preventDefault(); submitReview(); });
+
+      // Logout handler
+      document.querySelectorAll('#Logout').forEach(el=> el && el.addEventListener('click', function(e){ e.preventDefault(); localStorage.clear(); alert('You have successfully Logged out.'); }));
+
+      // init
+      (function(){
+        const gameID = new URLSearchParams(window.location.search).get('gameID');
+        if(gameID){ loadGame(gameID); loadReviews(gameID); }
+      })();
+
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register - Game Shop</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #1e2f4e; color: #ffffff; }
+    .card { background-color: #0b1220; border: 1px solid #1f2937; color: #ffffff; }
+    .form-control, .form-select { background-color: #071022; color: #ffffff; border-color: #233043; }
+    .form-control::placeholder { color: rgba(255,255,255,0.6); }
+    .form-control:focus { box-shadow: none; border-color: #3b82f6; }
+    a { color: #60a5fa; }
+    .text-muted { color: rgba(255,255,255,0.75) !important; }
+    .navbar .nav-link, .navbar-brand { color: #ffffff !important; }
+    .invalid-feedback { color: #ffb3b3; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/">Game Shop</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"
+        aria-controls="nav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="nav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="/newHome.html">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="login.html">Login</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-md-7 col-lg-6">
+        <div class="card p-4 shadow-sm">
+          <h3 class="mb-3">Create an account</h3>
+          <p class="text-muted small">Register a new account to buy and review games.</p>
+
+          <form id="registerForm" novalidate>
+            <div class="mb-3">
+              <label for="username" class="form-label">Username</label>
+              <input type="text" id="username" name="username" class="form-control" required minlength="3">
+              <div class="invalid-feedback">Please enter a username (3+ characters).</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="email" class="form-label">Email</label>
+              <input type="email" id="email" name="email" class="form-control" required>
+              <div class="invalid-feedback">Please enter a valid email address.</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input type="password" id="password" name="password" class="form-control" required minlength="6">
+              <div class="invalid-feedback">Password must be at least 6 characters.</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="confirmPassword" class="form-label">Confirm password</label>
+              <input type="password" id="confirmPassword" class="form-control" required>
+              <div class="invalid-feedback">Passwords do not match.</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="type" class="form-label">Account type</label>
+              <select id="type" name="type" class="form-select" required>
+                <option value="user" selected>User</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label for="profilePic" class="form-label">Profile picture URL (optional)</label>
+              <input type="url" id="profilePic" name="profile_pic_url" class="form-control" placeholder="https://...">
+            </div>
+
+            <div id="alert" class="alert d-none" role="alert"></div>
+
+            <div class="d-grid">
+              <button id="submitBtn" class="btn btn-primary" type="submit">Register</button>
+            </div>
+
+            <p class="mt-3 small text-muted">By registering you agree to our terms. Already have an account? <a href="login.html">Login</a></p>
+          </form>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    (function () {
+      const form = document.getElementById('registerForm');
+      const alertBox = document.getElementById('alert');
+
+      function showAlert(message, type = 'danger') {
+        alertBox.className = 'alert alert-' + type;
+        alertBox.textContent = message;
+        alertBox.classList.remove('d-none');
+      }
+
+      function clearAlert() {
+        alertBox.className = 'alert d-none';
+        alertBox.textContent = '';
+      }
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        clearAlert();
+
+        // simple client-side validation
+        const username = form.username.value.trim();
+        const email = form.email.value.trim();
+        const password = form.password.value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        const type = form.type.value;
+        const profile_pic_url = form.profile_pic_url.value.trim();
+
+        let valid = true;
+    
+        if (password !== confirmPassword) { valid = false; document.getElementById('confirmPassword').classList.add('is-invalid'); } else { document.getElementById('confirmPassword').classList.remove('is-invalid'); }
+
+        if (!valid) {
+          showAlert('Please fix the errors in the form and try again.');
+          return;
+        }
+
+        const payload = { username, email, password, type, profile_pic_url };
+
+        try {
+          const res = await fetch('http://localhost:8081/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (res.status === 201) {
+            const data = await res.text();
+            showAlert('Registration successful. ' + data, 'success');
+            form.reset();
+          } else if (res.status === 422) {
+            const text = await res.text();
+            showAlert('Validation error: ' + text, 'warning');
+          } else {
+            const text = await res.text();
+            showAlert('Server error: ' + text);
+          }
+        } catch (err) {
+          showAlert('Network error. Please try again later.');
+          console.error(err);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
