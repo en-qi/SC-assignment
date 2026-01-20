@@ -13,6 +13,18 @@ const reviewDB = require('../model/review');
 const gameDB = require('../model/game');
 var verifyToken = require('../auth/verifyToken.js');
 
+// Import validation functions
+const { 
+    validateReview, 
+    validateCategory, 
+    validatePlatform, 
+    validateUser,
+    validateGame,
+    validateLogin,
+    checkAdmin,
+    sanitizeResult 
+} = require('./validation/validateFns');
+
 const app = express();
 
 var cors = require('cors');
@@ -85,7 +97,7 @@ app.get('/searchgamedetails/:gameID', function (req, res) {
 
             res.status(200);
             res.type("json");
-            res.send(results);
+            res.send(sanitizeResult(results));
         }
     });
 });
@@ -97,6 +109,11 @@ app.post('/searchgame', function (req, res) {
     var input = req.body.input;
     var platform = req.body.platID;
     var category = req.body.catID;
+
+    // Basic input sanitization
+    input = input ? input.replace(/[<>'"\\;]/g, '').trim() : '';
+    platform = platform ? platform.replace(/[<>'"\\;]/g, '').trim() : '';
+    category = category ? category.replace(/[<>'"\\;]/g, '').trim() : '';
 
     gameDB.getSearchGame(input, platform, category, function (err, results) {
 
@@ -113,14 +130,14 @@ app.post('/searchgame', function (req, res) {
 
             res.status(200);
             res.type("json");
-            res.send(results);
+            res.send(sanitizeResult(results));
         }
     });
 });
 
 
 //User Login
-app.post('/users/login', function (req, res) {
+app.post('/users/login', validateLogin, function (req, res) {
     var email = req.body.email;
     var password = req.body.password;
     var rememberMe = req.body.rememberMe || false;
@@ -182,7 +199,7 @@ app.get('/category', function (req, res) {
 
             res.status(200);
             res.type("json");
-            res.send(results);
+            res.send(sanitizeResult(results));
         }
     });
 });
@@ -208,7 +225,7 @@ app.get('/platform', function (req, res) {
 
             res.status(200);
             res.type("json");
-            res.send(results);
+            res.send(sanitizeResult(results));
         }
     });
 });
@@ -216,7 +233,7 @@ app.get('/platform', function (req, res) {
 //ENDPOINT 1
 //GET /user/
 //Get all users
-app.get('/users', function (req, res) {
+app.get('/users', verifyToken, checkAdmin, function (req, res) {
 
 
     userDB.getUser(function (err, results) {
@@ -235,7 +252,7 @@ app.get('/users', function (req, res) {
 
             res.status(200);
             res.type("json");
-            res.send(results);
+            res.send(sanitizeResult(results));
         }
     });
 });
@@ -305,10 +322,15 @@ app.post('/users', function (req, res) {
 //ENDPOINT 3
 //GET /user/:userid
 //Get user by user id
-app.get('/users/:userid', function (req, res) {
+app.get('/users/:userid', verifyToken, validateUser, function (req, res) {
 
     //retrieve user input
     var userid = req.params.userid;
+
+    // Check if user is accessing their own data or is admin
+    if (req.userid != userid && req.type !== 'Admin' && req.type !== 'admin') {
+        return res.status(403).json({ message: 'Access denied' });
+    }
 
     userDB.getUserByUserid(userid, function (err, results) {
 
@@ -325,7 +347,7 @@ app.get('/users/:userid', function (req, res) {
 
             res.status(200);
             res.type("json");
-            res.send(results);
+            res.send(sanitizeResult(results));
         }
     });
 });
@@ -334,7 +356,7 @@ app.get('/users/:userid', function (req, res) {
 //ENDPOINT 4
 //POST /category
 //Add a new category
-app.post('/category',  function (req, res) {
+app.post('/category', verifyToken, checkAdmin, validateCategory, function (req, res) {
 
     //retrieve category input
     var catname = req.body.catname;
@@ -384,7 +406,7 @@ app.post('/category',  function (req, res) {
 //ENDPOINT 5
 //POST /platform
 //Add a new platform
-app.post('/platform',  function (req, res) {
+app.post('/platform', verifyToken, checkAdmin, validatePlatform, function (req, res) {
 
     //retrieve platform input
     var platform_name = req.body.platform_name;
@@ -432,7 +454,7 @@ app.post('/platform',  function (req, res) {
 //ENDPOINT 6
 //POST /game
 //Add a new game
-app.post('/game', upload.single('game_image'), function (req, res) {
+app.post('/game', verifyToken, checkAdmin, upload.single('game_image'), function (req, res) {
 
     var title = req.body.title;
     var game_description = req.body.description;
@@ -442,6 +464,11 @@ app.post('/game', upload.single('game_image'), function (req, res) {
     var year = req.body.year;
     var game_image = req.file;
     console.log(price);
+
+    // Validate game data
+    if (!title || !game_description || !year || !price) {
+        return res.status(400).json({ message: 'All game fields are required' });
+    }
 
     gameDB.insertGame(title, game_description, year, game_image, function (err, results) {
 
@@ -502,6 +529,9 @@ app.get('/game_platform/:platform', function (req, res) {
 
     var platform_name = req.params.platform;
 
+    // Sanitize platform name
+    platform_name = platform_name.replace(/[<>'"\\;]/g, '').trim();
+
     platformDB.getGameByPlatformName(platform_name, function (err, results) {
 
         if (err) {
@@ -517,7 +547,7 @@ app.get('/game_platform/:platform', function (req, res) {
 
             res.status(200);
             res.type("json");
-            res.send(results);
+            res.send(sanitizeResult(results));
         }
     });
 });
@@ -526,9 +556,14 @@ app.get('/game_platform/:platform', function (req, res) {
 //ENDPOINT 8
 //DELETE /game/:id
 //Delete a game
-app.delete('/game/:id', function (req, res) {
+app.delete('/game/:id', verifyToken, checkAdmin, function (req, res) {
 
     var gameID = req.params.id;
+
+    // Validate game ID
+    if (!gameID || isNaN(gameID) || gameID <= 0) {
+        return res.status(400).json({ message: 'Invalid game ID' });
+    }
 
     gameDB.deleteGame(gameID, function (err, results) {
 
@@ -554,12 +589,17 @@ app.delete('/game/:id', function (req, res) {
 //ENDPOINT 10
 //POST /user/:uid/game/:gid/review
 //User add review to game
-app.post('/users/:uid/game/:gid/review', function (req, res) {
+app.post('/users/:uid/game/:gid/review', verifyToken, validateReview, function (req, res) {
 
     var userid = req.params.uid;
     var gameID = req.params.gid;
-    var content = req.body.content;
+    var content = req.body.content;  // Already sanitized by validateReview
     var rating = req.body.rating;
+
+    // Check if user is posting for themselves
+    if (req.userid != userid) {
+        return res.status(403).json({ message: 'You can only post reviews for yourself' });
+    }
 
     reviewDB.insertReview(userid, gameID, content, rating, function (err, results) {
 
@@ -567,7 +607,7 @@ app.post('/users/:uid/game/:gid/review', function (req, res) {
 
             console.log(err);
 
-            res.status(200);
+            res.status(500);
             res.type("json");
             res.send(`{"Message":"Internal Server Error"}`);
         }
@@ -605,7 +645,7 @@ app.get('/game/:id/review', function (req, res) {
 
             res.status(200);
             res.type("json");
-            res.send(results);
+            res.send(sanitizeResult(results));
         }
     });
 });
@@ -641,7 +681,7 @@ app.get('/game/:id', function (req, res) {
 
                 res.status(200);
                 res.type("json");
-                res.send(results);
+                res.send(sanitizeResult(results));
             }
         }
     });
@@ -668,7 +708,7 @@ app.get('/game', function (req, res) {
 
             res.status(200);
             res.type("json");
-            res.send(results);
+            res.send(sanitizeResult(results));
         }
     });
 });
