@@ -3,6 +3,7 @@
 
 Summary: The app.js is used run the functions and what it displays.
 */
+require('dotenv').config();
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -13,7 +14,6 @@ const reviewDB = require('../model/review');
 const gameDB = require('../model/game');
 var verifyToken = require('../auth/verifyToken.js');
 
-// Import validation functions
 const { 
     validateReview, 
     validateCategory, 
@@ -22,37 +22,69 @@ const {
     validateGame,
     validateLogin,
     checkAdmin,
-    sanitizeResult 
+    sanitizeResult,
+    validateGameID  // ← ADD THIS LINE
 } = require('../validation/validateFns');
+
+// SECURITY MIDDLEWARE
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const cors = require('cors');
 
 const app = express();
 
-var cors = require('cors');
+// RATE LIMITING CONFIGURATION
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: 'Too many login attempts, please try again later'
+});
 
-app.options('*', cors());
-app.use(cors());
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100
+});
+
+// RESTRICTIVE CORS CONFIGURATION
+const corsOptions = {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
+app.use(helmet());
+
+// Apply rate limiting to public endpoints
+app.use('/searchgame', apiLimiter);
+app.use('/searchgamedetails/:gameID', apiLimiter);
+app.use('/game', apiLimiter);
 
 // For handling requirement of image upload
 const multer = require('multer');
 const storage = multer.memoryStorage();     // Store uploaded image file in memory
 const upload = multer({
     storage: storage,
+    limits: {                           // ← ADD THIS SECTION
+        fileSize: 5 * 1024 * 1024,     // 5MB limit
+        files: 1                       // Only 1 file
+    },
     fileFilter: function (req, file, cb) {
-
-        // Accept only JPG image
-        if (file.mimetype === 'image/jpeg') {
-
+        // Accept only JPG image with proper extension
+        if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/jpg') {
+            // Also check filename extension
+            if (!file.originalname.match(/\.(jpg|jpeg)$/i)) {
+                return cb(new Error('Only JPEG images are allowed'));
+            }
             cb(null, true);
         }
-
         // Reject other file type
         else {
-
             cb(new Error('Only JPEG images are allowed'));
         }
     }
 });
-
 
 
 
@@ -78,7 +110,7 @@ app.get('/CheckRole',verifyToken, function (req, res) {
 
 
 // Search Game Details
-app.get('/searchgamedetails/:gameID', function (req, res) {
+app.get('/searchgamedetails/:gameID', validateGameID, function (req, res) {
 
     var gameID = req.params.gameID;
 
@@ -137,7 +169,7 @@ app.post('/searchgame', function (req, res) {
 
 
 //User Login
-app.post('/users/login', validateLogin, function (req, res) {
+app.post('/users/login', loginLimiter, validateLogin, function (req, res) {
     var email = req.body.email;
     var password = req.body.password;
     var rememberMe = req.body.rememberMe || false;
@@ -715,6 +747,30 @@ app.get('/game', function (req, res) {
     });
 });
 
+// ---------------------
+// GLOBAL ERROR HANDLER - ADD THIS SECTION
+// ---------------------
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    
+    // Don't leak error details in production
+    if (process.env.NODE_ENV === 'production') {
+        res.status(500).json({ 
+            message: 'Internal Server Error' 
+        });
+    } else {
+        res.status(500).json({ 
+            message: err.message 
+        });
+    }
+});
+
+// 404 HANDLER - ADD THIS SECTION
+app.use((req, res) => {
+    res.status(404).json({ 
+        message: 'Endpoint not found' 
+    });
+});
 
 //---------------------
 

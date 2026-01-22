@@ -363,6 +363,27 @@ function checkAdmin(req, res, next) {
     next();
 }
 
+/**
+ * Validate game ID
+ * Return response with status 400 if validation fails
+ */
+function validateGameID(req, res, next) {
+    var gameID = req.params.gameID || req.params.id;
+    
+    if (!gameID || isNaN(gameID) || gameID <= 0) {
+        return res.status(400).json({ 
+            message: 'Invalid Game ID' 
+        });
+    }
+    next();
+}
+
+
+
+
+
+
+
 // ======================
 // EXPORTS
 // ======================
@@ -378,6 +399,7 @@ module.exports = {
     validatePlatform,
     validateSearch,
     validateLogin,
+    validateGameID,  // ← ADD THIS LINE
     
     // Authorization functions
     checkAdmin,
