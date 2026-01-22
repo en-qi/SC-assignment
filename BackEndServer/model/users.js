@@ -98,9 +98,10 @@ var userDB = {
             else {
 
                 var getUserByUserIDSql = `select userid, username, email, password, type, profile_pic_url,
-                                            DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at FROM users where userid = ${userid};`;
+                          DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at 
+                          FROM users where userid = ?`;
 
-                dbConn.query(getUserByUserIDSql, [], function (err, results) {
+              dbConn.query(getUserByUserIDSql, [userid], function (err, results) {
 
                     if (err) {
 

@@ -156,8 +156,8 @@ var gameDB = {
 
             else {
 
-                var insertGameSql = `INSERT INTO game (title, game_description, year, game_image) VALUES ('${title}', '${game_description}', '${year}', ?);`;
-                dbConn.query(insertGameSql, [game_image.buffer], function (err, results) {
+                var insertGameSql = `INSERT INTO game (title, game_description, year, game_image) VALUES (?, ?, ?, ?);`;
+                dbConn.query(insertGameSql, [title, game_description, year, game_image.buffer], function (err, results) {
 
                     if (err) {
 
@@ -302,8 +302,8 @@ var gameDB = {
 
             else {
 
-                var updateGameSql = `update game set title='${title}', game_description='${game_description}', year='${year}', game_image='${game_image.buffer}' where gameID='${gameID}`;
-                dbConn.query(updateGameSql, [], function (err, results) {
+                var updateGameSql = `UPDATE game SET title=?, game_description=?, year=?, game_image=? WHERE gameID=?`;
+               dbConn.query(updateGameSql, [title, game_description, year, game_image.buffer, gameID], function (err, results) {
 
                     if (err) {
 
