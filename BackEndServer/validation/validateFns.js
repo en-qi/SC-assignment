@@ -379,7 +379,29 @@ function validateGameID(req, res, next) {
 }
 
 
+// Validate user type/role
+function validateUserType(req, res, next) {
+    var type = req.body.type;
+    var validTypes = ['User', 'Admin', 'Moderator'];
+    
+    if (type && !validTypes.includes(type)) {
+        return res.status(400).json({ message: 'Invalid user type' });
+    }
+    
+    // Prevent self-promotion to admin
+    if (req.type !== 'Admin' && type === 'Admin') {
+        return res.status(403).json({ message: 'Only admins can create admin accounts' });
+    }
+    next();
+}
 
+// Validate session
+function validateSession(req, res, next) {
+    if (!req.userid) {
+        return res.status(401).json({ message: 'Authentication required' });
+    }
+    next();
+}
 
 
 

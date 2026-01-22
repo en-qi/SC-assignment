@@ -60,7 +60,30 @@ var gameDB = {
             }
         });
     },
-
+// Add to gameDB object
+checkGameOwnership: function(gameID, userid, callback) {
+    var dbConn = db.getConnection();
+    
+    dbConn.connect(function (err) {
+        if (err) return callback(err, false);
+        
+        var checkOwnershipSql = `
+            SELECT COUNT(*) as count FROM review 
+            WHERE fk_games = ? AND fk_users = ?
+            UNION
+            SELECT COUNT(*) FROM game 
+            WHERE gameID = ? AND created_by = ?`;
+        
+        dbConn.query(checkOwnershipSql, [gameID, userid, gameID, userid], function (err, results) {
+            dbConn.end();
+            if (err) return callback(err, false);
+            
+            var total = 0;
+            results.forEach(row => total += row.count);
+            callback(null, total > 0);
+        });
+    });
+},
 
     //Get game from search bar
     getSearchGame: function (input, platform, category, callback) {
