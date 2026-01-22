@@ -23,7 +23,7 @@ const {
     validateLogin,
     checkAdmin,
     sanitizeResult 
-} = require('./validation/validateFns');
+} = require('../validation/validateFns');
 
 const app = express();
 
@@ -162,10 +162,12 @@ app.post('/users/login', validateLogin, function (req, res) {
         }
 
         else {
-
-            res.status(500);
-            res.send(err.statusCode);
-        }
+    console.log('Login error:', err);
+    res.status(500).json({ 
+        success: false, 
+        message: 'Login failed. Please check your credentials.' 
+    });
+}
     });
 });
 
