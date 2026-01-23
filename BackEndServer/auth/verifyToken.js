@@ -1,30 +1,41 @@
-require('dotenv').config();  // ← ADD THIS LINE
+require('dotenv').config();
 
 var jwt = require('jsonwebtoken');
-
 var config = require('../config');
 
 function verifyToken(req, res, next) {
-    console.log(req.headers);
-
-    var token = req.headers['authorization']; //retrieve authorization header's content
-    console.log(token);
-
-    if (!token || !token.includes('Bearer')) { //process the token
+    var token = req.headers['authorization'];
+    
+    if (!token || !token.includes('Bearer')) {
+        // Log failed token verification
+        console.log('🔒 Token verification failed: No token or wrong format');
         res.status(403);
         return res.send({ auth: 'false', message: 'Not authorized!' });
     }
     else {
-        token = token.split('Bearer ')[1]; //obtain the token's value
-        //console.log(token);
+        token = token.split('Bearer ')[1];
         jwt.verify(token, process.env.JWT_SECRET || config.key, function (err, decoded) {
             if (err) {
+                // Log invalid token
+                console.log('🔒 Token verification failed: Invalid token', {
+                    ip: req.ip,
+                    url: req.url,
+                    error: err.message
+                });
                 res.status(403);
                 return res.send({ auth: false, message: 'Not authorized!' });
             }
             else {
-                req.userid = decoded.userid; //decode the userid and store in req for use
-                req.type = decoded.type; //decode the role and store in req for use
+                // Log successful authentication
+                console.log('🔒 User authenticated:', {
+                    userId: decoded.userid,
+                    type: decoded.type,
+                    ip: req.ip,
+                    endpoint: req.url
+                });
+                
+                req.userid = decoded.userid;
+                req.type = decoded.type;
                 next();
             }
         });
